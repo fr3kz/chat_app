@@ -1,4 +1,4 @@
-# chat_app
+# chat_app [developing]
 Aplikacja backendowa do prostego czatu, napisana w Django, Django Rest Framework i Django Channels. Umożliwia użytkownikom tworzenie kont, logowanie, wybieranie kanałów, pisanie wiadomości tekstowych, wysyłanie zdjęć, filmów oraz dodawanie znajomych.
 
 ## Wymagania
