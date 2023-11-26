@@ -14,7 +14,7 @@ class Login(APIView):
             user = serializer.validated_data["user"]
             login(request, user)
             context  = {
-                'message': 'Zalogowano pomyślnie',
+                'message': request.session.session_key,
                 'user': user.username
             }
             return Response(context, status=status.HTTP_200_OK)
