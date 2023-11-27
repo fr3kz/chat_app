@@ -1,33 +1,41 @@
+import datetime
 import json
-
+from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
-from .models import Lobby
+
+from users.models import User
+from .models import Lobby,Message
+
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.room_name = self.scope["url_route"]["kwargs"]["room_id"]
         self.room_group_name = f"chat_{self.room_name}"
-        #sprawdzenie czy podane room_id istnieje
-
-        #dodanie do grup
+        self.user_id = self.scope["url_route"]["kwargs"]["user_id"]
 
 
-
+        # Add to room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+
+        # Accept the connection
         await self.accept()
-        await self.send(text_data=json.dumps({"message": "Connected"}))
+        lobby_exists = await self.check_if_lobby_exists()
+        if not lobby_exists:
+            await self.send(text_data=json.dumps({"message": "No such lobby"}))
+        else:
+            await self.add_user_to_lobby()
+            await self.send(text_data=json.dumps({"message": "Connected"}))
+
 
     async def disconnect(self, close_code):
+        await self.remove_user_from_lobby()
         # Leave room group
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
-
 
     async def receive(self, text_data):
         text_data_json = json.loads(text_data)
         message = text_data_json["message"]
-
-        print(self.room_name)
-        lobby = Lobby.objects.get(id=self.room_name)
+        await self.add_message(message)
 
         # Send message to room group
         await self.channel_layer.group_send(
@@ -40,3 +48,34 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Send message to WebSocket
         await self.send(text_data=json.dumps({"message": message}))
+
+    @database_sync_to_async
+    def check_if_lobby_exists(self):
+        return Lobby.objects.filter(id=self.room_name).exists()
+
+    @database_sync_to_async
+    def add_user_to_lobby(self):
+        lobby = Lobby.objects.get(id=self.room_name)
+        user = User.objects.get(id=self.user_id)
+        lobby.users.add(user)
+        lobby.save()
+
+        return
+
+    @database_sync_to_async
+    def remove_user_from_lobby(self):
+        lobby = Lobby.objects.get(id=self.room_name)
+        user = User.objects.get(id=self.user_id)
+        lobby.users.remove(user)
+        lobby.save()
+
+        return
+
+
+    @database_sync_to_async
+    def add_message(self,message):
+
+        lobby = Lobby.objects.get(id=self.room_name)
+        user = User.objects.get(id=self.user_id)
+        Message.objects.create(lobby=lobby,user=user,message=message,timestamp=datetime.datetime.now())
+        return
