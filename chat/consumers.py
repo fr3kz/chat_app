@@ -4,7 +4,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from users.models import User
-from .models import Lobby,Message
+from .models import Lobby, Message
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -12,7 +12,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_name = self.scope["url_route"]["kwargs"]["room_id"]
         self.room_group_name = f"chat_{self.room_name}"
         self.user_id = self.scope["url_route"]["kwargs"]["user_id"]
-
 
         # Add to room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
@@ -25,7 +24,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
         else:
             await self.add_user_to_lobby()
             await self.send(text_data=json.dumps({"message": "Connected"}))
+            messages = await self.get_messages()
+            await self.get_all_messages(messages)
 
+    @database_sync_to_async
+    def get_messages(self):
+        lobby = Lobby.objects.prefetch_related('message_set').get(id=self.room_name)
+        messages = lobby.message_set.all()
+
+        return messages
+    async def get_all_messages(self,messages):
+        for message in reversed(messages[:3]):
+            await self.channel_layer.group_send(
+                self.room_group_name, {"type": "chat.message", "message": message.message}
+            )
 
     async def disconnect(self, close_code):
         await self.remove_user_from_lobby()
@@ -71,11 +83,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         return
 
-
     @database_sync_to_async
-    def add_message(self,message):
+    def add_message(self, message):
 
         lobby = Lobby.objects.get(id=self.room_name)
         user = User.objects.get(id=self.user_id)
-        Message.objects.create(lobby=lobby,user=user,message=message,timestamp=datetime.datetime.now())
+        Message.objects.create(lobby=lobby, user=user, message=message, timestamp=datetime.datetime.now())
         return
+
+    @database_sync_to_async
+    def get_lobby_with_messages(self):
+        return Lobby.objects.prefetch_related('message_set').get(id=self.room_name)
