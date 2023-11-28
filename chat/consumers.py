@@ -1,5 +1,7 @@
 import json
 import asyncio
+from datetime import datetime
+
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
@@ -25,7 +27,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.add_user_to_lobby()
             await self.send(text_data=json.dumps({"message": "Connected"}))
 
-            # Ustawienie, aby zaczynało się od pustej listy
+
             self.last_message_id = None
 
             asyncio.ensure_future(self.check_messages_periodically())
@@ -44,20 +46,28 @@ class ChatConsumer(AsyncWebsocketConsumer):
         lobby = Lobby.objects.prefetch_related('message_set').get(id=self.room_name)
 
         if self.last_message_id:
-            messages = lobby.message_set.filter(id__gt=self.last_message_id)
+            messages = (
+                lobby.message_set
+                .filter(id__gt=self.last_message_id)
+                .values('id', 'message', 'user__username', 'timestamp')  # Dodaj inne pola, jakie potrzebujesz
+            )
         else:
-            messages = lobby.message_set.all()
+            messages = (
+                lobby.message_set
+                .all()
+                .values('id', 'message', 'user__username', 'timestamp')  # Dodaj inne pola, jakie potrzebujesz
+            )
 
         if messages:
             # Zaktualizuj ID ostatniej wiadomości
-            self.last_message_id = messages.last().id
+            self.last_message_id = messages.last()['id']
 
         return messages
 
     async def get_all_messages(self, messages):
         for message in messages:
             await self.channel_layer.group_send(
-                self.room_group_name, {"type": "chat.message", "message": message.message}
+                self.room_group_name, {"type": "chat.show_message", "message": message}
             )
 
     async def disconnect(self, close_code):
@@ -70,10 +80,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = text_data_json["message"]
         await self.add_message(message)
 
-        # Send message to room group
-        await self.channel_layer.group_send(
-            self.room_group_name, {"type": "chat.message", "message": message}
-        )
+
 
     # Receive message from room group
     async def chat_message(self, event):
@@ -81,6 +88,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Send message to WebSocket
         await self.send(text_data=json.dumps({"message": message}))
+
+    async def chat_show_message(self,event):
+        message = event["message"]
+
+        data = json.dumps({
+            "user": message["user__username"],
+            "message": message["message"],
+            "time": str(message["timestamp"])
+        })
+
+        await self.send(text_data=data)
 
     @database_sync_to_async
     def check_if_lobby_exists(self):
@@ -109,8 +127,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         lobby = Lobby.objects.get(id=self.room_name)
         user = User.objects.get(id=self.user_id)
-        Message.objects.create(lobby=lobby, user=user, message=message, timestamp=datetime.datetime.now())
-        return
+        return Message.objects.create(lobby=lobby, user=user, message=message, timestamp=datetime.now())
 
     @database_sync_to_async
     def get_lobby_with_messages(self):
