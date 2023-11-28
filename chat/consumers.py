@@ -1,5 +1,5 @@
-import datetime
 import json
+import asyncio
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
@@ -24,17 +24,38 @@ class ChatConsumer(AsyncWebsocketConsumer):
         else:
             await self.add_user_to_lobby()
             await self.send(text_data=json.dumps({"message": "Connected"}))
-            messages = await self.get_messages()
-            await self.get_all_messages(messages)
+
+            # Ustawienie, aby zaczynało się od pustej listy
+            self.last_message_id = None
+
+            asyncio.ensure_future(self.check_messages_periodically())
+
+    async def check_messages_periodically(self):
+        while True:
+            messages = await self.get_new_messages()
+
+            if messages:
+                await self.get_all_messages(messages)
+
+            await asyncio.sleep(2)
 
     @database_sync_to_async
-    def get_messages(self):
+    def get_new_messages(self):
         lobby = Lobby.objects.prefetch_related('message_set').get(id=self.room_name)
-        messages = lobby.message_set.all()
+
+        if self.last_message_id:
+            messages = lobby.message_set.filter(id__gt=self.last_message_id)
+        else:
+            messages = lobby.message_set.all()
+
+        if messages:
+            # Zaktualizuj ID ostatniej wiadomości
+            self.last_message_id = messages.last().id
 
         return messages
-    async def get_all_messages(self,messages):
-        for message in reversed(messages[:3]):
+
+    async def get_all_messages(self, messages):
+        for message in messages:
             await self.channel_layer.group_send(
                 self.room_group_name, {"type": "chat.message", "message": message.message}
             )
