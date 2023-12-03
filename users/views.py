@@ -1,12 +1,14 @@
 from django.contrib.auth import login
+from django.middleware.csrf import get_token
 from django.shortcuts import render
-from rest_framework import status
+from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import LoginSerializer, RegisterSerializer
 
 # Create your views here.
 class Login(APIView):
+    permission_classes = (permissions.AllowAny,)
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
@@ -15,15 +17,17 @@ class Login(APIView):
             login(request, user)
             context  = {
                 'message': request.session.session_key,
-                'user': user.username
+                'user': user.username,
+                'userid': user.id,
             }
             return Response(context, status=status.HTTP_200_OK)
         else:
-            context  = {'message': serializer.errors}
+            context  = {'message_error': serializer.errors}
             return Response(context, status=status.HTTP_400_BAD_REQUEST)
 
 
 class Register(APIView):
+    permission_classes = (permissions.AllowAny,)
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
 
@@ -36,10 +40,12 @@ class Register(APIView):
 
 
 class Get_CSRF(APIView):
+    permission_classes = (permissions.AllowAny,)
     def get(self, request):
-
+        csrf_token = get_token(request)
         context = {
             'message': 'Pobrano token CSRF',
-            'csrftoken': request.COOKIES['csrftoken']
+            'csrftoken': csrf_token
         }
         return Response(context, status=status.HTTP_200_OK)
+

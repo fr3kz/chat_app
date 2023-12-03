@@ -1,4 +1,7 @@
+import http
+
 from django.shortcuts import render
+from rest_framework import permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Lobby,Message
@@ -7,6 +10,7 @@ from .serializers import LobbySerializer,MessageSerializer
 
 # Create your views here.
 class Show_lobby(APIView):
+    permission_classes = (permissions.AllowAny,)
     def get(self, request):
         lobby = Lobby.objects.all()
 
@@ -70,3 +74,18 @@ class Get_messages(APIView):
             'messages': serializer.data,
         }
         return Response(context,status=200)
+
+
+class Leave_lobby(APIView):
+    def get(self,request,id):
+        lobby = Lobby.objects.get(id=id)
+        user = request.user
+
+        lobby.users.remove(user)
+        lobby.save()
+
+        context = {
+            'message': 'usunieto uzytkownika'
+        }
+
+        return Response(context,status=http.HTTPStatus.OK)
