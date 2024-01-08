@@ -146,9 +146,5 @@ ASGI_APPLICATION = "chat_app.asgi.application"
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
-        "Config": {
-            "hosts": [("Daphne", 6379)],
-        },
-    }
-
+    },
 }
