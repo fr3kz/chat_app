@@ -73,7 +73,8 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'chat_app.wsgi.application'
-
+import os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'chat_app.settings')
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
