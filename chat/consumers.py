@@ -27,7 +27,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 await self.send(text_data=json.dumps({"message": "No such lobby"}))
             else:
                 await self.add_user_to_lobby()
-                await self.send(text_data=json.dumps({"message": "Connected"}))
 
                 self.last_message_id = None
                 asyncio.ensure_future(self.check_messages_periodically())
